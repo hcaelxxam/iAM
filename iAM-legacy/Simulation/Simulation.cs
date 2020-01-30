@@ -18,6 +18,8 @@ namespace Simulation
 {
     public class Simulation
     {
+        private static readonly log4net.ILog log = log4net.LogManager.GetLogger(typeof(Simulation));
+
         private String m_strSimulation;// Name of simulation being run.
         private String m_strSimulationID;// SIMID for simulation which is being run.
         private String m_strNetworkID;// NetworkID which simulation is occurring on.
@@ -223,6 +225,11 @@ namespace Simulation
         {
             APICall = isAPICall;
 
+            AppDomain.CurrentDomain.FirstChanceException += (sender, eventArgs) =>
+            {
+                log.Error("Exception:", eventArgs.Exception);
+            };
+
             SimulationMessaging.DateTimeStart = DateTime.Now;
             //Get Attribute types
             _dateTimeLast = DateTime.Now;
@@ -278,10 +285,13 @@ namespace Simulation
 
             try
             {
+                log.Info($"Beginning RunSimulation() for simulation {m_strSimulationID}.");
                 RunSimulation();
+                log.Info($"Finished RunSimulation() for simulation {m_strSimulationID}.");
             }
             catch (Exception ex)
             {
+                log.Error($"An exception occurred during RunSimulation() for simulation {m_strSimulationID}:", ex);
                 if (isAPICall.Equals(true))
                 {
                     updateStatus = Builders<SimulationModel>.Update
@@ -863,6 +873,7 @@ namespace Simulation
             //Remove money for committed projects from the all budgets, all years so that it is accounted
             //for scheduled and split treatments.
             //The report will show the money spent in the appropriate year.  We just need to move the spending in memory before the analysis.
+            log.Info($"Beginning to spend all committed projects.");
             foreach(var section in m_listSections)
             {
                 foreach(var commit in section.YearCommit)
@@ -873,6 +884,7 @@ namespace Simulation
                     }
                 }
             }
+            log.Info($"Finished spending committed projects.");
 
 
             //After FillSectionList everything is read to go to start simulating!
@@ -887,6 +899,7 @@ namespace Simulation
                     .Set(s => s.status, "Applying Performance/Deterioration equations for" + nYear.ToString());
                     Simulations.UpdateOne(s => s.simulationId == Convert.ToInt32(m_strSimulationID), updateStatus);
                 }
+                log.Info($"Applying performance/deterioration equations for {nYear} (simulation {m_strSimulationID}).");
                 ApplyDeterioration(nYear);
 
                 //Determine Benefit/Cost
@@ -899,6 +912,7 @@ namespace Simulation
                 }
 
                 m_listApplyTreatment.Clear();
+                log.Info($"Calculating benefit/remaining life versus cost ratios for {nYear} (simulation {m_strSimulationID}).");
                 DetermineBenefitCostIterative(nYear);
 
                 //Load Committed Projects.  These get comitted (and spent) regardless of budget.
@@ -910,9 +924,11 @@ namespace Simulation
                     .Set(s => s.status, "Applying committed projects for " + nYear.ToString());
                     Simulations.UpdateOne(s => s.simulationId == Convert.ToInt32(m_strSimulationID), updateStatus);
                 }
+                log.Info($"Applying committed projects for {nYear} (simulation {m_strSimulationID}).");
                 ApplyCommitted(nYear);
 
                 //Calculate network averages and deficient base (after committed).
+                log.Info($"Determining target and deficient for {nYear} (simulation {m_strSimulationID}).");
                 DetermineTargetAndDeficient(nYear);
 
                 SimulationMessaging.AddMessage(new SimulationMessage("Spending Budget and evaluating Targets for " + nYear.ToString() + " at " + DateTime.Now.ToString("HH:mm:ss")));
@@ -922,31 +938,55 @@ namespace Simulation
                     .Set(s => s.status, "Spending Budget and evaluating Targets for " + nYear.ToString());
                     Simulations.UpdateOne(s => s.simulationId == Convert.ToInt32(m_strSimulationID), updateStatus);
                 }
+                log.Info($"Spending budget and evaluating targets for {nYear} (simulation {m_strSimulationID}).");
                 if (Method.TypeAnalysis.Contains("Multi"))
                 {
                     //MULTIBUDGET FIX
-                    SpendBudgetPermits(nYear, "None");
+                    try
+                    {
+                        SpendBudgetPermits(nYear, "None");
+                        log.Info($"Finished SpendBudgetPermits({nYear}, \"None\") for simulation {m_strSimulationID}.");
+                    }
+                    catch (Exception ex)
+                    {
+                        log.Error($"Failed spending budget and evaluating targets for {nYear} (simulation {m_strSimulationID}):", ex);
+                    }
                 }
                 else
                 {
                     switch (Method.TypeBudget)
                     {
                         case "No Spending":
+                            log.Info($"Spending budget (No Spending) for {nYear} (simulation {m_strSimulationID}).");
                             SpendBudgetPermits(nYear, "None");
+                            log.Info($"Finished SpendBudgetPermits({nYear}, \"None\") for simulation {m_strSimulationID}.");
                             break;
 
                         case "As Budget Permits":
+                            log.Info($"Spending budget (As Budget Permits) for {nYear} (simulation {m_strSimulationID}).");
                             SpendBudgetPermits(nYear, "");
+                            log.Info($"Finished SpendBudgetPermits({nYear}, \"\") for simulation {m_strSimulationID}.");
                             break;
 
                         case "Unlimited":
-                            SpendBudgetPermits(nYear, "Unlimited");
+                            log.Info($"Spending budget (Unlimited) for {nYear} (simulation {m_strSimulationID}).");
+                            try
+                            {
+                                SpendBudgetPermits(nYear, "Unlimited");
+                                log.Info($"Finished SpendBudgetPermits({nYear}, \"Unlimited\") for simulation {m_strSimulationID}.");
+                            }
+                            catch (Exception ex)
+                            {
+                                log.Error($"Failed spending budget (Unlimited) for {nYear} (simulation {m_strSimulationID}).", ex);
+                            }
                             break;
 
                         case "Until Targets Met":
                         case "Until Deficient Met":
                         case "Targets/Deficient Met":
+                            log.Info($"Spending budget (Targets/Deficient Met) for {nYear} (simulation {m_strSimulationID}).");
                             SpendUntilTargetsDeficientMet(nYear);
+                            log.Info($"Finished SpendUntilTargetsDeficientMet({nYear}) for simulation {m_strSimulationID}.");
                             break;
                     }
                 }
@@ -961,6 +1001,7 @@ namespace Simulation
 
                 //ResetSectionForNextYear();
             }
+            log.Info($"Finished iterating over years for simulation {m_strSimulationID}.");
 
             SimulationMessaging.AddMessage(new SimulationMessage("Output per section per attribute report for all years at " + DateTime.Now.ToString("HH:mm:ss")));
             if (APICall.Equals(true))
@@ -1023,6 +1064,7 @@ namespace Simulation
             }
 
             SimulationMessaging.AddMessage(new SimulationMessage("Simulation complete at " + DateTime.Now.ToString("HH:mm:ss"), 100));
+            log.Info($"Finished simulation {m_strSimulationID}.");
             Thread.Sleep(1000);
         }
 
@@ -5145,6 +5187,7 @@ namespace Simulation
             bool bRemoveTreatedSection = false;
             int currentHead = 0; //Current head of AppliedTreament.  Used for SubsetTarget.
 
+            log.Info($"Beginning while loop in SpendUntilTargetsDeficientMetRoadCare(). \nm_listApplyTreatment.Count = {m_listApplyTreatment.Count}.");
             while (m_listApplyTreatment.Count > 0)
             {
                 benefitOrder++;
@@ -5161,6 +5204,7 @@ namespace Simulation
                 }
                 catch (Exception e)
                 {
+                    log.Error($"Removing targets and deficient error:", e);
                     SimulationMessaging.AddMessage(new SimulationMessage("Removing targets and deficient error:" + e.Message));
                     throw e;
                 }
@@ -5510,6 +5554,7 @@ namespace Simulation
 
                 nCommitOrder++;
             }
+            log.Info($"Finished while loop.");
             //Loop through all SECTIONS and apply no treatment to sections without treatments
             try
             {
@@ -5681,6 +5726,7 @@ namespace Simulation
             switch (DBMgr.NativeConnectionParameters.Provider)
             {
                 case "MSSQL":
+                    log.Info($"Attempting SQLBulkLoad.");
                     DBMgr.SQLBulkLoad(SimulationMessaging.ReasonsTable, sReasonOutfile, ',');
                     break;
 
@@ -5688,6 +5734,7 @@ namespace Simulation
                     break;
 
                 default:
+                    log.Error($"Invalid NativeConnectionParamteters.Provider.");
                     throw new NotImplementedException("TODO: Create ANSI implementation for XXXXXXXXXXXX");
                     //break;
             }
@@ -6170,6 +6217,7 @@ namespace Simulation
                 //Sort descending
                 m_listApplyTreatment.Sort((t1, t2) => t2.BenefitCostRatio.CompareTo(t1.BenefitCostRatio));
 
+                log.Info($"Iterating over m_listPriorities");
                 foreach (Priorities priority in m_listPriorities)
                 {
                     if (!priority.IsAllYears)
@@ -6177,9 +6225,11 @@ namespace Simulation
                         if (priority.Years != nYear) continue;
                     }
 
+                    log.Info($"Iterating over Investment.BudgetOrder");
                     foreach (String strBudget in Investment.BudgetOrder)
                     {
                         var treatmentsWithBudget = m_listApplyTreatment.Where(t => t.Budget.Contains(strBudget));
+                        log.Info($"Iterating over treatmentsWithBudget");
                         foreach (var treatment in treatmentsWithBudget)
                         {
                             nBenefitOrder++;
@@ -6194,6 +6244,7 @@ namespace Simulation
                             sConsequenceID = treatment.TreatmentID;
                             sRLHash = treatment.RemainingLifeHash;
                             //This makes sure the like function does not find something goofy for budgets like ("Greggs Budget", "eggs") -> That one budget it a subset of another.
+                            log.Info($"Checking contains budget");
                             if (!ContainsBudget(treatment.Budget, strBudget)) continue;
 
                             String strTreatmentID = sConsequenceID;
@@ -6204,12 +6255,16 @@ namespace Simulation
                                 return s.SectionID == sSectionID;
                             });
                             if (section == null)
+                            {
+                                log.Error($"Section is null.");
                                 continue; //Should never happen. TODO: Add error handling.
+                            }
 
                             //Check if already treated.  Check if treament is in a shadow or will cast a shadow.
                             // Check for negative BC, if its negative.  Dont spend money on it.
                             if (Convert.ToDouble(sBC) < 0)
                             {
+                                log.Info($"Writing reason report: Negative benefit/cost");
                                 //SimulationMessaging.AddMessage(new SimulationMessage("Warning! Applying treatment " + sTreatment + " to section " + section.Section + " produces as negative benefit cost. Please evaluate your treatment consequence parameters. Treatment will not be suggested."));
                                 //May 16, 2014.  No need to remove this from list.  A continue will work properly here since iterating list.
                                 //All subsequent treatments in this budget should have negative benefit, so can be ignored.
@@ -6220,6 +6275,7 @@ namespace Simulation
 
                             if (!section.IsTreatmentAllowed(sTreatment, nAny.ToString(), nSame.ToString(), nYear))
                             {
+                                log.Info($"Writing reason report: Any/Same shadow");
                                 reasonReportWriter.WriteLine(MakeReasonReportLine(section.SectionID, sTreatment, "Any/Same shadow", strBudget, "", nYear, priority.PriorityLevel, 1, nBenefitOrder, treatment.BenefitCostRatio));
                                 continue;
                             }
@@ -6230,6 +6286,7 @@ namespace Simulation
                             ISplitTreatmentLimit limit = null;
                             if (strBudgetLimit == "None") //No treatments can be spent
                             {
+                                log.Info($"Writing reason report: None selected for analysis");
                                 reasonReportWriter.WriteLine(MakeReasonReportLine(section.SectionID, sTreatment, "None selected for analysis budget", strBudget, "", nYear, priority.PriorityLevel, 1, nBenefitOrder, treatment.BenefitCostRatio));
                                 continue;
                             }
@@ -6239,6 +6296,7 @@ namespace Simulation
                                     section.m_hashNextAttributeValue, priority, limits, strBudgetLimit, out budgetHash,out limit);
                                 if (string.IsNullOrWhiteSpace(budgetSelected))
                                 {
+                                    log.Info($"Writing reason report: inadequate budget");
                                     reasonReportWriter.WriteLine(MakeReasonReportLine(section.SectionID, sTreatment, "Inadequate budget", strBudget, budgetHash, nYear, priority.PriorityLevel, 1, nBenefitOrder, treatment.BenefitCostRatio));
                                     continue;
                                 }
@@ -6250,22 +6308,25 @@ namespace Simulation
 
                                 if (string.IsNullOrWhiteSpace(budgetSelected))
                                 {
+                                    log.Info($"Writing reason report: inadequate budget");
                                     reasonReportWriter.WriteLine(MakeReasonReportLine(section.SectionID, sTreatment, "Inadequate budget", strBudget, budgetHash, nYear, priority.PriorityLevel, 1, nBenefitOrder, treatment.BenefitCostRatio));
                                     continue;
                                 }
                             }
 
+                            log.Info("Writing reason report: Selected");
                             reasonReportWriter.WriteLine(MakeReasonReportLine(section.SectionID, sTreatment, "Selected", strBudget, budgetHash, nYear, priority.PriorityLevel, 1, nBenefitOrder, treatment.BenefitCostRatio));
 
                             //Spend budget (accoreding to limit)
                             int splitYear = 0;
+                            log.Info($"Spending budget");
                             foreach (var percentage in limit.Percentages)
                             {
                                 var year = nYear + splitYear;
                                 Investment.SpendBudget(fAmount * percentage / 100, budgetSelected, year.ToString());
                                 splitYear++;
                             }
-
+                            log.Info($"Finished spending budget.");
                             
                             //Mark treated.
                             section.Treated = true;
@@ -6279,6 +6340,7 @@ namespace Simulation
                             //Apply consequences.
                             String strChangeHash;
                             Hashtable hashOutput;
+                            log.Info($"Applying consequences");
                             if (limit.Percentages.Count == 1)//If project is done in one year
                             {
                                 hashOutput = ApplyConsequences(section.m_hashNextAttributeValue, strTreatmentID,
@@ -6295,19 +6357,23 @@ namespace Simulation
                                 CommitSplitTreatment(section, nYear, treatment, budgetSelected, limit, fAmount);
                                 strChangeHash = "";
                             }
+                            log.Info($"Finished applying consequences.");
 
-                            
+
                             //Commit scheduled projects
+                            log.Info($"Committing scheduled projects");
                             CommitScheduled(section, nYear, strTreatmentID, strBudget,treatment.ScheduledCost);
 
                             section.m_hashYearAttributeValues.Add(nYear, hashOutput);
 
                             float fOldArea = section.Area;
                             //Calculate new section area
+                            log.Info($"Calculating new section area");
                             section.CalculateArea(nYear);
                             float fNewArea = section.Area;
 
                             //Update targets.
+                            log.Info($"Updating targets");
                             UpdateTargetsAndDeficiency(nYear, fOldArea, fNewArea, section.m_hashNextAttributeValue,
                                 hashOutput);
 
@@ -6338,15 +6404,18 @@ namespace Simulation
                             {
                                 case "MSSQL":
                                     // MSSQL needs the leading spot for the ID_ column.
+                                    log.Info($"Writing to MSSQL");
                                     tw.WriteLine(":" + strOut);
                                     break;
 
                                 case "ORACLE":
+                                    log.Info($"Writing to Oracle");
                                     tw.Write(strOut);
                                     tw.Write("#ORACLEENDOFLINE#");
                                     break;
 
                                 default:
+                                    log.Error($"Not implemented");
                                     throw new NotImplementedException(
                                         "TODO: Create ANSI implementation for XXXXXXXXXXXX");
                                     //break;
@@ -6354,15 +6423,19 @@ namespace Simulation
 
                             nCommitOrder++;
                         }
+                        log.Info($"Finished iterating over treatmentsWithBudget");
                         //If spend across budgets is enabled.  Move money to the next budget.
                         if (Method.UseAcrossBudgets)
                         {
                             Investment.MoveBudgetAcross(strBudget, nYear.ToString(), priority);
                         }
                     }
+                    log.Info($"Finished iterating over Investment.BudgetOrder");
                 }
+                log.Info($"Finished iterating over m_listPriorities");
             }
 
+            log.Info($"Iterating over m_listSections");
             //Loop through all SECTIONS and apply no treatment to sections without treatments
             foreach (Sections section in m_listSections)
             {
@@ -6448,6 +6521,7 @@ namespace Simulation
                         //break;
                 }
             }
+            log.Info($"Finished iterating over m_listSections");
             tw.Close();
             reasonReportWriter.Close();
             _spanAnalysis += DateTime.Now - _dateTimeLast;
@@ -6456,10 +6530,12 @@ namespace Simulation
             switch (DBMgr.NativeConnectionParameters.Provider)
             {
                 case "MSSQL":
+                    log.Info($"Attempting SQLBulkLoad.");
                     DBMgr.SQLBulkLoad(SimulationMessaging.ReportTable, sOutFile, ':');
                     break;
 
                 case "ORACLE":
+                    log.Info($"Attempting OracleBulkLoad.");
                     //throw new NotImplementedException( "TODO: Figure out columns for SpendBudgetPermit" );
                     List<string> reportColumns = DBMgr.GetTableColumns(SimulationMessaging.ReportTable);
                     reportColumns.Remove("ID_");
@@ -6474,6 +6550,7 @@ namespace Simulation
             switch (DBMgr.NativeConnectionParameters.Provider)
             {
                 case "MSSQL":
+                    log.Info($"Attempting SQLBulkLoad.");
                     DBMgr.SQLBulkLoad(SimulationMessaging.ReasonsTable, sReasonOutFile, ',');
                     break;
 

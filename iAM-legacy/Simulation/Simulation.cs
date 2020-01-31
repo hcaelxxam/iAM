@@ -13,6 +13,7 @@ using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Windows.Forms;
 
 namespace Simulation
 {
@@ -218,6 +219,17 @@ namespace Simulation
 
         public object APICall;
 
+        static void Application_ThreadException(object sender, ThreadExceptionEventArgs e)
+        {
+            // Log the exception, display it, etc
+           log.Error(e.Exception.Message);
+        }
+        static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            // Log the exception, display it, etc
+            log.Error((e.ExceptionObject as Exception).Message);
+        }
+
         /// <summary>
         /// Start and run a complete simulation. Creates necessary Simulation Tables.
         /// </summary>
@@ -225,6 +237,8 @@ namespace Simulation
         {
             APICall = isAPICall;
 
+            //Application.ThreadException += new ThreadExceptionEventHandler(Application_ThreadException);
+            //AppDomain.CurrentDomain.UnhandledException += new UnhandledExceptionEventHandler(CurrentDomain_UnhandledException);
             AppDomain.CurrentDomain.FirstChanceException += (sender, eventArgs) =>
             {
                 log.Error("Exception:", eventArgs.Exception);

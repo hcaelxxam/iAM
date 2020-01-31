@@ -359,3 +359,5 @@ connection.config
 
 # Deployment logs
 /Deployment/npmLogs
+/BridgeCareApp/BridgeCare/Logs
+/Bridge/iAMApp/RoadCare Projects

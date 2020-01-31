@@ -763,14 +763,11 @@ namespace Simulation
         {
             // This path will be "..\BridgeCare\iAMApp\BridgeCareApp\BridgeCare"
             string workingDirectory = HostingEnvironment.ApplicationPhysicalPath;
-
-            // This will be "..\BridgeCare\iAMApp"
-            string targetPath = Path.GetFullPath(Path.Combine(workingDirectory, @"..\..\"));
             //String strMyDocumentsFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            targetPath += "RoadCare Projects\\Temp";
-			Directory.CreateDirectory(targetPath);
+            workingDirectory += "RoadCare Projects\\Temp";
+			Directory.CreateDirectory(workingDirectory);
 
-			strOutFile = targetPath + "\\" + strFile;
+			strOutFile = workingDirectory + "\\" + strFile;
             TextWriter tw = new StreamWriter(strOutFile);
             return tw;
         }

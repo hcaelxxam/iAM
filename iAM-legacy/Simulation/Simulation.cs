@@ -3397,12 +3397,14 @@ namespace Simulation
         {
             try
             {
+                log.Info("Iterating over m_listSections");
                 foreach (Sections section in m_listSections)
                 {
                     section.ResetSectionForNextYear();
                     section.AddRemainingLifeHash(nYear);
                     //Don't apply deterioration if a SplitTreatment(cashflow) project is partially complete
                     var applyDeterioration = true;
+                    log.Info("Iterating over section.YearCommit");
                     foreach(var committed in section.YearCommit)
                     {
                         if(!string.IsNullOrWhiteSpace(committed.SplitTreatmentId) && nYear == committed.Year)
@@ -3411,6 +3413,7 @@ namespace Simulation
                         }
                     }
 
+                    log.Info("Iterating over m_listDeteriorate");
                     foreach (Deteriorate deteriorate in m_listDeteriorate)
                     {
                         //This calculates the base attribute value for next year.
@@ -3422,6 +3425,7 @@ namespace Simulation
                     //Determine the controlling RSL bin and set the values of each to the proper level
                     if (SimulationMessaging.Method.IsConditionalRSL)
                     {
+                        log.Info("Iterating over m_listDeteriorate (normalizing conditional rsl)");
                         foreach (Deteriorate deteriorate in m_listDeteriorate)
                         {
                             section.NormalizeConditionalRSL(deteriorate.Attribute, nYear);
@@ -3493,6 +3497,7 @@ namespace Simulation
             if (bTarget || bDeficient)
             {
                 m_listApplyTreatment.Clear();
+                log.Info("Iterating over m_hashTargetSectionID.Keys");
                 foreach (String key in m_hashTargetSectionID.Keys)
                 {
                     List<String> listID = (List<String>)m_hashTargetSectionID[key];
@@ -3515,6 +3520,7 @@ namespace Simulation
 
             var index = 0;
 
+            log.Info("Iterating over m_listSections");
             foreach (Sections section in m_listSections)
             {
                 if (index % 10 == 0)
@@ -3780,7 +3786,9 @@ namespace Simulation
             switch (DBMgr.NativeConnectionParameters.Provider)
             {
                 case "MSSQL":
+                    log.Info("Attempting SQLBulkload");
                     DBMgr.SQLBulkLoad(strTable, sFile, ':');
+                    log.Info("Finished SQLBulkLoad");
                     break;
 
                 case "ORACLE":
@@ -3800,7 +3808,9 @@ namespace Simulation
                     columnNames.Add("DEFICIENT");
                     columnNames.Add("RLHASH");
                     columnNames.Add("CHANGEHASH");
+                    log.Info("Attempting OracleBulkload");
                     DBMgr.OracleBulkLoad(DBMgr.NativeConnectionParameters, strTable, sFile, columnNames, ":", " \"str '#ORACLEENDOFLINE#'\"");
+                    log.Info("Finished OracleBulkload");
                     SimulationMessaging.AddMessage(new SimulationMessage("Bulk Load for BC Complete..."));
                     break;
 

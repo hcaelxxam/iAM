@@ -8,6 +8,7 @@ using System.IO;
 using Simulation.Interface;
 using System.Windows.Forms;
 using System.Web.Hosting;
+using System.Configuration;
 
 namespace Simulation
 {
@@ -762,12 +763,14 @@ namespace Simulation
         static public TextWriter CreateTextWriter(String strFile, out String strOutFile)
         {
             // This path will be "..\BridgeCare\iAMApp\BridgeCareApp\BridgeCare"
-            string workingDirectory = HostingEnvironment.ApplicationPhysicalPath;
+            //string workingDirectory = HostingEnvironment.ApplicationPhysicalPath;
+            string val = ConfigurationManager.AppSettings["TempFilePath"];
+            string path = System.Environment.ExpandEnvironmentVariables(val);
             //String strMyDocumentsFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            workingDirectory += "RoadCare Projects\\Temp";
-			Directory.CreateDirectory(workingDirectory);
+            //workingDirectory += "RoadCare Projects\\Temp";
+			Directory.CreateDirectory(path);
 
-			strOutFile = workingDirectory + "\\" + strFile;
+			strOutFile = path + "\\" + strFile;
             TextWriter tw = new StreamWriter(strOutFile);
             return tw;
         }

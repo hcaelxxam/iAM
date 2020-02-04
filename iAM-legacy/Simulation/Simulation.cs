@@ -3551,6 +3551,7 @@ namespace Simulation
                         }
                     }
                 }
+                log.Info($"Committed projects considered for section {section.SectionID}");
                 if (continueOnCommitted) continue;
                 index++;
                 var noTreatmentRemainLifeHash = "";
@@ -3585,7 +3586,7 @@ namespace Simulation
                         }
                     }
                 }
-
+                log.Info($"After possible treatments: {section.SectionID}.");
                 foreach (Treatments treatment in possibleAfterSupersede)
                 {
                     int nTargetDeficient = 0;
@@ -3595,6 +3596,7 @@ namespace Simulation
                         section.NumberTreatment++;
                         //Cost includes treatment and all scheduled treatments
                         fCost = GetTreatmentCost(section, treatment, nYear, out int cumulativeCostId, out float treatmentOnlyCost, out Dictionary<string, float> scheduledCost);
+                        log.Info($"Calculated treatment cost for treatment {treatment.Treatment}.");
 
                         #region benefit
 
@@ -3609,7 +3611,7 @@ namespace Simulation
                         var treamentBenefit = new CalculateBenefit(nYear, treatment, m_listDeteriorate, m_listCalculatedAttribute, noTreatment.ConsequenceList, section.YearCommit, m_dictionaryCommittedConsequences, m_dictionaryCommittedEquations, m_listTreatments);
 
                         var benefit = treamentBenefit.Solve(section.m_hashNextAttributeValue, out nextAttributeValue, out strRLHash);
-
+                        log.Info($"Calculated benefit for treatment {treatment.Treatment}, benefit {benefit}");
                         deltaBenefit = benefit - baseBenefit;
 
                         if (!bAscending && !SimulationMessaging.Method.IsRemainingLife)

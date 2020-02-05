@@ -14,6 +14,7 @@ namespace Simulation
 {
     public static class SimulationMessaging
     {
+        public static bool IsDesktop { private get; set; } = true;
 
         static private List<SimulationMessage> m_strListProgress = new List<SimulationMessage>();
         [ThreadStatic]
@@ -369,7 +370,7 @@ namespace Simulation
         static public void AddMessage(string baseMessage, Exception ex)
 		{
 			Exception currentException = ex;
-			while (currentException != null)
+			if (currentException != null)
 			{
 				baseMessage += "{" + currentException.Message + "}";
 			}
@@ -378,11 +379,14 @@ namespace Simulation
 		
 		static public void AddMessage(SimulationMessage message)
         {
+            if (!IsDesktop)
+            {
+                return;
+            }
             if (message.Percent != 100)
             {
                 message.Percent = PercentComplete();
             }
-
             lock (m_strListProgress)
             {
                 m_strListProgress.Add(message);
